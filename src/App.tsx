@@ -44,7 +44,8 @@ function App() {
     deleteDisponibilidad,
     addReserva,
     addDocente,
-    deleteDocente
+    deleteDocente,
+    addApoderado
   } = useStorage();
 
   const schools = SCHOOL_CONFIGS;
@@ -398,7 +399,7 @@ function App() {
     switch(currentView) {
       case 'dashboard': return <Dashboard db={db} currentUser={currentUser} showToast={showToast} onEditTemas={(id, texto) => setTemasEdit({id, texto})} onPrint={handlePrint} updateReserva={updateReserva} />;
       case 'docentes': return <Docentes db={db} addDocente={addDocente} deleteDocente={deleteDocente} showToast={showToast} currentUser={currentUser} />;
-      case 'apoderados': return <Apoderados db={db} />;
+      case 'apoderados': return <Apoderados db={db} addApoderado={addApoderado} showToast={showToast} currentUser={currentUser} />;
       case 'disponibilidad': return <DisponibilidadView db={db} currentUser={currentUser} showToast={showToast} addDisponibilidad={addDisponibilidad} deleteDisponibilidad={deleteDisponibilidad} />;
       case 'reservas': return <Reservas db={db} currentUser={currentUser} showToast={showToast} onEditTemas={(id, texto) => setTemasEdit({id, texto})} onPrint={handlePrint} updateReserva={updateReserva} />;
       case 'mis-reservas': return <Reservas db={db} currentUser={currentUser} showToast={showToast} onEditTemas={(id, texto) => setTemasEdit({id, texto})} onPrint={handlePrint} filterDocente={db.docentes.find(d => d.usuario_id === currentUser.id)?.id} updateReserva={updateReserva} />;
@@ -568,8 +569,6 @@ function Dashboard({ db, currentUser, showToast, onEditTemas, onPrint, updateRes
     .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
     .slice(0, 5);
 
-  const apoderados = db.usuarios.filter(u => u.rol === 'apoderado');
-
   const stats = [
     { label: 'Total Reservas', value: allActivities.length, icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'Docentes', value: db.docentes.length, icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50' },
@@ -593,7 +592,6 @@ function Dashboard({ db, currentUser, showToast, onEditTemas, onPrint, updateRes
           </div>
         ))}
       </div>
-
 
       <div className="glass-effect rounded-2xl overflow-hidden border border-slate-200/60 shadow-sm">
         <div className="p-6 border-b border-slate-200/60 flex items-center justify-between bg-slate-50/50">
@@ -1350,47 +1348,84 @@ function BuscarDocentes({ db, currentUser, showToast, setCurrentView, addReserva
 }
 
 
-function Apoderados({ db }: { db: DB }) {
-  const apoderados = db.usuarios.filter(u => u.rol === 'apoderado');
+function Apoderados({ db, addApoderado, showToast, currentUser }: { db: DB, addApoderado: (u: any) => Promise<boolean>, showToast: (m: string, t?: any) => void, currentUser: Usuario }) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleAdd = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get('email') as string;
+    const nombre = formData.get('nombre') as string;
+    const password = 'provisional123';
+
+    try {
+      await addApoderado({
+        nombre,
+        email,
+        password,
+        rol: 'apoderado',
+        establecimiento_id: currentUser.establecimiento_id
+      });
+      showToast('Apoderado agregado exitosamente');
+      setIsModalOpen(false);
+    } catch (err: any) {
+      showToast(err.message || 'Error al agregar apoderado', 'error');
+    }
+  };
 
   return (
-    <div className="space-y-8 fade-in">
-      <div>
-        <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter italic">Apoderados</h2>
-        <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest mt-1">Usuarios registrados con rol de apoderado</p>
+    <div className="space-y-6 fade-in">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter italic">Gestión de Apoderados</h2>
+          <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest mt-1">Usuarios registrados en el sistema</p>
+        </div>
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="bg-blue-700 hover:bg-blue-800 text-white font-black px-6 py-3 rounded-2xl transition-all shadow-xl shadow-blue-100 flex items-center gap-2 uppercase tracking-widest text-[10px]"
+        >
+          <Plus className="w-4 h-4" />
+          Nuevo Apoderado
+        </button>
       </div>
 
-      <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-slate-50/50">
-              <tr>
-                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Nombre</th>
-                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Correo</th>
-                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Escuela</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {apoderados.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="px-6 py-16 text-center text-slate-400 italic text-xs font-bold uppercase tracking-widest">No hay apoderados registrados</td>
-                </tr>
-              ) : (
-                apoderados.map(user => {
-                  const establecimiento = db.establecimientos.find(e => e.id === user.establecimiento_id);
-                  return (
-                    <tr key={user.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 text-sm font-bold text-slate-900">{user.nombre}</td>
-                      <td className="px-6 py-4 text-sm text-slate-500">{user.email}</td>
-                      <td className="px-6 py-4 text-sm text-slate-500">{establecimiento?.nombre || 'N/A'}</td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {db.usuarios.filter(u => u.rol === 'apoderado').map(apoderado => (
+          <div key={apoderado.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all group">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-black text-xl">
+                {apoderado.nombre.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h4 className="font-black text-slate-900 tracking-tight">{apoderado.nombre}</h4>
+                <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest">{apoderado.email}</p>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl p-10">
+            <h3 className="text-2xl font-black text-slate-900 mb-8 uppercase tracking-tighter italic">Registrar Apoderado</h3>
+            <form onSubmit={handleAdd} className="space-y-6">
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-blue-500 uppercase tracking-widest ml-1">Nombre Completo</label>
+                <input type="text" name="nombre" required className="w-full px-4 py-4 bg-slate-50 border-2 border-transparent focus:bg-white focus:border-blue-600 rounded-2xl outline-none transition-all font-bold text-sm" />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-blue-500 uppercase tracking-widest ml-1">Correo Electrónico</label>
+                <input type="email" name="email" required className="w-full px-4 py-4 bg-slate-50 border-2 border-transparent focus:bg-white focus:border-blue-600 rounded-2xl outline-none transition-all font-bold text-sm" />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600">Cancelar</button>
+                <button type="submit" className="flex-[2] bg-blue-700 hover:bg-blue-800 text-white font-black py-4 rounded-2xl transition-all shadow-xl shadow-blue-100 uppercase tracking-widest text-xs">Guardar Apoderado</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

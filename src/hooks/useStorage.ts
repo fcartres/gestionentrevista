@@ -280,6 +280,28 @@ export function useStorage() {
     return true;
   };
 
+  const addApoderado = async (user: Omit<Usuario, 'id' | 'created_at' | 'establecimiento_id'>) => {
+    if (!currentSchool) return false;
+    
+    const normalizedEmail = user.email.trim().toLowerCase();
+    const userToInsert = {
+      ...user,
+      email: normalizedEmail,
+      establecimiento_id: currentSchool.id,
+      id: Date.now(),
+      rol: 'apoderado' as const,
+      created_at: new Date().toISOString()
+    };
+
+    const { error } = await supabase
+      .from('usuarios')
+      .insert([userToInsert]);
+
+    if (error) throw error;
+    await fetchData();
+    return true;
+  };
+
   return {
     db,
     loading,
@@ -297,6 +319,7 @@ export function useStorage() {
     addReserva,
     addDocente,
     deleteDocente,
+    addApoderado,
     fetchData
   };
 }
