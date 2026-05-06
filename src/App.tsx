@@ -143,10 +143,16 @@ function App() {
               <button
                 key={school.id}
                 onClick={() => selectSchool(school)}
-                className="group bg-white/10 backdrop-blur-xl border border-white/10 p-8 rounded-[2.5rem] hover:bg-white/20 transition-all text-center flex flex-col items-center gap-4 hover:scale-105 active:scale-95 shadow-2xl"
+                className="group bg-white/10 backdrop-blur-xl border border-white/10 p-6 rounded-[2.5rem] hover:bg-white/20 transition-all text-center flex flex-col items-center gap-4 hover:scale-105 active:scale-95 shadow-2xl"
               >
-                <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center text-white group-hover:bg-blue-600 group-hover:scale-110 transition-all">
-                  <School className="w-8 h-8" />
+                <div className="w-20 h-20 rounded-3xl bg-white/10 flex items-center justify-center text-white group-hover:bg-blue-600 group-hover:scale-110 transition-all overflow-hidden">
+                  {school.logo ? (
+                    <img src={school.logo} alt={school.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-white text-lg font-black uppercase tracking-[0.25em]">
+                      {school.name.split(' ').map(word => word[0]).join('')}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <h3 className="text-white font-black text-sm uppercase tracking-tight">{school.name}</h3>
