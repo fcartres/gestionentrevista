@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Agendamiento Escolar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .slide-in { animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+        }
+        .dark .glass-effect {
+            background: rgba(30, 41, 59, 0.95);
+        }
+        .calendar-day:hover:not(.disabled):not(.reserved) {
+            transform: scale(1.05);
+            cursor: pointer;
+        }
+        .time-slot {
+            transition: all 0.2s;
+        }
+        .time-slot:hover:not(.disabled):not(.reserved) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased">
+
+    <!-- Auth Container -->
+    <div id="authContainer" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div class="w-full max-w-md">
+            <!-- Logo -->
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-600 text-white mb-4 shadow-lg shadow-indigo-200">
+                    <i data-lucide="calendar-check" class="w-8 h-8"></i>
+                </div>
+                <h1 class="text-3xl font-bold text-slate-900 tracking-tight">EduSchedule</h1>
+                <p class="text-slate-600 mt-2">Sistema de Agendamiento Escolar</p>
+            </div>
+
+            <!-- Login Form -->
+            <div id="loginForm" class="glass-effect rounded-2xl shadow-xl p-8 fade-in">
+                <h2 class="text-2xl font-semibold mb-6 text-slate-800">Iniciar Sesión</h2>
+                <form onsubmit="handleLogin(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Correo electrónico</label>
+                        <div class="relative">
+                            <i data-lucide="mail" class="absolute left-3 top-3 w-5 h-5 text-slate-400"></i>
+                            <input type="email" name="email" required class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" placeholder="usuario@ejemplo.com">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Contraseña</label>
+                        <div class="relative">
+                            <i data-lucide="lock" class="absolute left-3 top-3 w-5 h-5 text-slate-400"></i>
+                            <input type="password" name="password" required class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" placeholder="••••••••">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2">
+                        <span>Ingresar</span>
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                </form>
+                <div class="mt-6 text-center">
+                    <p class="text-sm text-slate-600">¿No tienes cuenta? 
+                        <button onclick="toggleAuthMode()" class="text-indigo-600 hover:text-indigo-700 font-medium underline">Regístrate aquí</button>
+                    </p>
+                </div>
+                <div class="mt-4 p-4 bg-blue-50 rounded-lg text-xs text-blue-800">
+                    <p class="font-semibold mb-1">Cuentas de prueba:</p>
+                    <p>Admin: admin@edu.com / admin123</p>
+                    <p>Docente: docente@edu.com / docente123</p>
+                    <p>Apoderado: apoderado@edu.com / apoderado123</p>
+                </div>
+            </div>
+
+            <!-- Register Form -->
+            <div id="registerForm" class="glass-effect rounded-2xl shadow-xl p-8 hidden fade-in">
+                <h2 class="text-2xl font-semibold mb-6 text-slate-800">Crear Cuenta</h2>
+                <form onsubmit="handleRegister(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Nombre completo</label>
+                        <div class="relative">
+                            <i data-lucide="user" class="absolute left-3 top-3 w-5 h-5 text-slate-400"></i>
+                            <input type="text" name="nombre" required class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" placeholder="Juan Pérez">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Correo electrónico</label>
+                        <div class="relative">
+                            <i data-lucide="mail" class="absolute left-3 top-3 w-5 h-5 text-slate-400"></i>
+                            <input type="email" name="email" required class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" placeholder="usuario@ejemplo.com">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Rol</label>
+                        <select name="rol" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
+                            <option value="">Selecciona tu rol</option>
+                            <option value="apoderado">Apoderado</option>
+                            <option value="docente">Docente</option>
+                        </select>
+                    </div>
+                    <div id="especialidadContainer" class="hidden">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Especialidad / Asignatura</label>
+                        <input type="text" name="especialidad" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" placeholder="Matemáticas, Lenguaje, etc.">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Contraseña</label>
+                        <div class="relative">
+                            <i data-lucide="lock" class="absolute left-3 top-3 w-5 h-5 text-slate-400"></i>
+                            <input type="password" name="password" required minlength="6" class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" placeholder="Mínimo 6 caracteres">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2">
+                        <span>Registrarse</span>
+                        <i data-lucide="user-plus" class="w-4 h-4"></i>
+                    </button>
+                </form>
+                <div class="mt-6 text-center">
+                    <p class="text-sm text-slate-600">¿Ya tienes cuenta? 
+                        <button onclick="toggleAuthMode()" class="text-indigo-600 hover:text-indigo-700 font-medium underline">Inicia sesión</button>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- App Container -->
+    <div id="appContainer" class="hidden min-h-screen bg-slate-50">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="fixed left-0 top-0 h-full w-64 bg-white border-r border-slate-200 transform -translate-x-full md:translate-x-0 transition-transform duration-300 z-40 shadow-lg md:shadow-none">
+            <div class="p-6 border-b border-slate-100">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white">
+                        <i data-lucide="calendar-check" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-slate-800 text-lg">EduSchedule</h1>
+                        <p class="text-xs text-slate-500" id="userRoleDisplay">Rol</p>
+                    </div>
+                </div>
+            </div>
+            
+            <nav class="p-4 space-y-1" id="sidebarNav">
+                <!-- Dynamic navigation items -->
+            </nav>
+
+            <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-100 bg-white">
+                <button onclick="logout()" class="w-full flex items-center gap-3 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                    <span class="font-medium">Cerrar Sesión</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Mobile Sidebar Overlay -->
+        <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/50 z-30 hidden md:hidden"></div>
+
+        <!-- Main Content -->
+        <main class="md:ml-64 min-h-screen transition-all duration-300">
+            <!-- Header -->
+            <header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+                <div class="flex items-center justify-between px-6 py-4">
+                    <div class="flex items-center gap-4">
+                        <button onclick="toggleSidebar()" class="md:hidden p-2 hover:bg-slate-100 rounded-lg text-slate-600">
+                            <i data-lucide="menu" class="w-6 h-6"></i>
+                        </button>
+                        <div>
+                            <h2 id="pageTitle" class="text-xl font-semibold text-slate-800">Dashboard</h2>
+                            <p id="currentDate" class="text-sm text-slate-500"></p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="text-right hidden sm:block">
+                            <p id="userNameDisplay" class="font-medium text-slate-800 text-sm">Usuario</p>
+                            <p id="userEmailDisplay" class="text-xs text-slate-500">email@example.com</p>
+                        </div>
+                        <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold" id="userAvatar">
+                            U
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div id="contentArea" class="p-6 fade-in">
+                <!-- Dynamic content loaded here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-4 right-4 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <div class="bg-white border border-slate-200 shadow-lg rounded-lg px-4 py-3 flex items-center gap-3 min-w-[300px]">
+            <div id="toastIcon" class="text-green-500">
+                <i data-lucide="check-circle" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <p id="toastMessage" class="font-medium text-slate-800 text-sm">Operación exitosa</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4 opacity-0 transition-opacity duration-200">
+        <div class="bg-white rounded-2xl shadow-xl max-w-md w-full transform scale-95 transition-transform duration-200" id="modalContent">
+            <div class="p-6">
+                <h3 id="modalTitle" class="text-lg font-semibold text-slate-800 mb-4">Título</h3>
+                <div id="modalBody">Contenido</div>
+            </div>
+            <div class="px-6 py-4 bg-slate-50 rounded-b-2xl flex justify-end gap-2">
+                <button onclick="closeModal()" class="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium text-sm">Cancelar</button>
+                <button id="modalActionBtn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium text-sm transition-colors">Aceptar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        // Data Store (simulating database)
+        const DB = {
+            usuarios: [
+                { id: 1, nombre: 'Admin Principal', email: 'admin@edu.com', password: 'admin123', rol: 'admin', created_at: new Date().toISOString() },
+                { id: 2, nombre: 'Prof. María González', email: 'docente@edu.com', password: 'docente123', rol: 'docente', created_at: new Date().toISOString() },
+                { id: 3, nombre: 'Juan Pérez', email: 'apoderado@edu.com', password: 'apoderado123', rol: 'apoderado', created_at: new Date().toISOString() }
+            ],
+            docentes: [
+                { id: 1, usuario_id: 2, especialidad: 'Matemáticas' }
+            ],
+            disponibilidad: [],
+            reservas: []
+        };
+
+        // State
+        let currentUser = null;
+        let currentView = 'dashboard';
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            updateDate();
+            setInterval(updateDate, 60000);
+            
+            // Check for saved session
+            const savedUser = localStorage.getItem('currentUser');
+            if (savedUser) {
+                currentUser = JSON.parse(savedUser);
+                showApp();
+            }
+
+            // Role change handler for register
+            document.querySelector('select[name="rol"]').addEventListener('change', (e) => {
+                const container = document.getElementById('especialidadContainer');
+                if (e.target.value === 'docente') {
+                    container.classList.remove('hidden');
+                    container.querySelector('input').required = true;
+                } else {
+                    container.classList.add('hidden');
+                    container.querySelector('input').required = false;
+                }
+            });
+        });
+
+        function loadData() {
+            const saved = localStorage.getItem('eduScheduleDB');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                Object.assign(DB, parsed);
+            } else {
+                saveData(); // Save initial data
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('eduScheduleDB', JSON.stringify(DB));
+        }
+
+        function updateDate() {
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('currentDate').textContent = new Date().toLocaleDateString('es-ES', options);
+        }
+
+        // Auth Functions
+        function toggleAuthMode() {
+            const login = document.getElementById('loginForm');
+            const register = document.getElementById('registerForm');
+            if (login.classList.contains('hidden')) {
+                login.classList.remove('hidden');
+                register.classList.add('hidden');
+            } else {
+                login.classList.add('hidden');
+                register.classList.remove('hidden');
+            }
+            lucide.createIcons();
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            const form = e.target;
+            const email = form.email.value;
+            const password = form.password.value;
+
+            const user = DB.usuarios.find(u => u.email === email && u.password === password);
+            
+            if (user) {
+                currentUser = user;
+                localStorage.setItem('currentUser', JSON.stringify(user));
+                showApp();
+                showToast('Bienvenido, ' + user.nombre, 'success');
+            } else {
+                showToast('Credenciales incorrectas', 'error');
+            }
+        }
+
+        function handleRegister(e) {
+            e.preventDefault();
+            const form = e.target;
+            const email = form.email.value;
+            
+            if (DB.usuarios.find(u => u.email === email)) {
+                showToast('El correo ya está registrado', 'error');
+                return;
+            }
+
+            const newUser = {
+                id: Date.now(),
+                nombre: form.nombre.value,
+                email: email,
+                password: form.password.value,
+                rol: form.rol.value,
+                created_at: new Date().toISOString()
+            };
+
+            DB.usuarios.push(newUser);
+
+            if (newUser.rol === 'docente') {
+                DB.docentes.push({
+                    id: Date.now(),
+                    usuario_id: newUser.id,
+                    especialidad: form.especialidad.value || 'Sin especialidad'
+                });
+            }
+
+            saveData();
+            
+            // Auto login after register
+            currentUser = newUser;
+            localStorage.setItem('currentUser', JSON.stringify(newUser));
+            showApp();
+            showToast('Cuenta creada exitosamente', 'success');
+        }
+
+        function logout() {
+            currentUser = null;
+            localStorage.removeItem('currentUser');
+            document.getElementById('appContainer').classList.add('hidden');
+            document.getElementById('authContainer').classList.remove('hidden');
+            showToast('Sesión cerrada', 'info');
+        }
+
+        // App Functions
+        function showApp() {
+            document.getElementById('authContainer').classList.add('hidden');
+            document.getElementById('appContainer').classList.remove('hidden');
+            
+            // Update UI with user info
+            document.getElementById('userNameDisplay').textContent = currentUser.nombre;
+            document.getElementById('userEmailDisplay').textContent = currentUser.email;
+            document.getElementById('userRoleDisplay').textContent = capitalize(currentUser.rol);
+            document.getElementById('userAvatar').textContent = currentUser.nombre.charAt(0).toUpperCase();
+            
+            setupNavigation();
+            navigateTo('dashboard');
+        }
+
+        function capitalize(str) {
+            return str.charAt(0).toUpperCase() + str.slice(1);
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            
+            if (sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+                setTimeout(() => overlay.classList.remove('opacity-0'), 10);
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('opacity-0');
+                setTimeout(() => overlay.classList.add('hidden'), 300);
+            }
+        }
+
+        function setupNavigation() {
+            const nav = document.getElementById('sidebarNav');
+            nav.innerHTML = '';
+            
+            const items = [];
+            
+            if (currentUser.rol === 'admin') {
+                items.push(
+                    { icon: 'layout-dashboard', label: 'Dashboard', view: 'dashboard' },
+                    { icon: 'users', label: 'Gestión de Docentes', view: 'docentes' },
+                    { icon: 'calendar', label: 'Todas las Reservas', view: 'reservas' }
+                );
+            } else if (currentUser.rol === 'docente') {
+                items.push(
+                    { icon: 'layout-dashboard', label: 'Dashboard', view: 'dashboard' },
+                    { icon: 'clock', label: 'Mi Disponibilidad', view: 'disponibilidad' },
+                    { icon: 'calendar-check', label: 'Mis Reservas', view: 'mis-reservas' }
+                );
+            } else if (currentUser.rol === 'apoderado') {
+                items.push(
+                    { icon: 'layout-dashboard', label: 'Dashboard', view: 'dashboard' },
+                    { icon: 'search', label: 'Buscar Docentes', view: 'buscar-docentes' },
+                    { icon: 'calendar-check', label: 'Mis Reservas', view: 'mis-citas' }
+                );
+            }
+
+            items.forEach(item => {
+                const btn = document.createElement('button');
+                btn.className = `w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl transition-all group ${currentView === item.view ? 'bg-indigo-50 text-indigo-600 font-medium' : ''}`;
+                btn.innerHTML = `
+                    <i data-lucide="${item.icon}" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    <span>${item.label}</span>
+                `;
+                btn.onclick = () => navigateTo(item.view);
+                nav.appendChild(btn);
+            });
+            
+            lucide.createIcons();
+        }
+
+        function navigateTo(view) {
+            currentView = view;
+            setupNavigation(); // Update active state
+            
+            const container = document.getElementById('contentArea');
+            container.innerHTML = '';
+            
+            switch(view) {
+                case 'dashboard':
+                    renderDashboard(container);
+                    break;
+                case 'docentes':
+                    renderDocentes(container);
+                    break;
+                case 'disponibilidad':
+                    renderDisponibilidad(container);
+                    break;
+                case 'mis-reservas':
+                case 'reservas':
+                    renderReservas(container);
+                    break;
+                case 'buscar-docentes':
+                    renderBuscarDocentes(container);
+                    break;
+                case 'mis-citas':
+                    renderMisCitas(container);
+                    break;
+            }
+            
+            // Update page title
+            const titles = {
+                'dashboard': 'Dashboard',
+                'docentes': 'Gestión de Docentes',
+                'disponibilidad': 'Mi Disponibilidad',
+                'mis-reservas': 'Mis Reservas',
+                'reservas': 'Todas las Reservas',
+                'buscar-docentes': 'Buscar Docentes',
+                'mis-citas': 'Mis Citas Agendadas'
+            };
+            document.getElementById('pageTitle').textContent = titles[view] || 'Dashboard';
+            
+            lucide.createIcons();
+        }
+
+        // View Renderers
+        function renderDashboard(container) {
+            const isDocente = currentUser.rol === 'docente';
+            const isAdmin = currentUser.rol === 'admin';
+            const isApoderado = currentUser.rol === 'apoderado';
+            
+            let stats = [];
+            
+            if (isAdmin) {
+                const totalDocentes = DB.docentes.length;
+                const totalReservas = DB.reservas.length;
+                const reservasHoy = DB.reservas.filter(r => r.fecha === new Date().toISOString().split('T')[0]).length;
+                
+                stats = [
+                    { label: 'Docentes registrados', value: totalDocentes, icon: 'users', color: 'blue' },
+                    { label: 'Total reservas', value: totalReservas, icon: 'calendar', color: 'indigo' },
+                    { label: 'Reservas hoy', value: reservasHoy, icon: 'calendar-check', color: 'green' }
+                ];
+            } else if (isDocente) {
+                const docente = DB.docentes.find(d => d.usuario_id === currentUser.id);
+                const miReservas = docente ? DB.reservas.filter(r => r.docente_id === docente.id && r.estado === 'reservado').length : 0;
+                const disponibilidad = docente ? DB.disponibilidad.filter(d => d.docente_id === docente.id).length : 0;
+                
+                stats = [
+                    { label: 'Mis reservas activas', value: miReservas, icon: 'calendar-check', color: 'indigo' },
+                    { label: 'Horarios disponibles', value: disponibilidad, icon: 'clock', color: 'green' },
+                    { label: 'Reservas hoy', value: 0, icon: 'today', color: 'blue' } // Simplified for demo
+                ];
+            } else {
+                const misCitas = DB.reservas.filter(r => r.apoderado_id === currentUser.id && r.estado === 'reservado').length;
+                const docentesDisp = DB.docentes.length;
+                
+                stats = [
+                    { label: 'Mis citas activas', value: misCitas, icon: 'calendar-check', color: 'indigo' },
+                    { label: 'Docentes disponibles', value: docentesDisp, icon: 'users', color: 'blue' }
+                ];
+            }
+            
+            const html = `
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    ${stats.map(stat => `
+                        <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 rounded-xl bg-${stat.color}-100 flex items-center justify-center text-${stat.color}-600">
+                                    <i data-lucide="${stat.icon}" class="w-6 h-6"></i>
+                                </div>
+                                <span class="text-3xl font-bold text-slate-800">${stat.value}</span>
+                            </div>
+                            <p class="text-slate-600 font-medium">${stat.label}</p>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                    <h3 class="text-lg font-semibold text-slate-800 mb-4">Próximas actividades</h3>
+                    <div class="space-y-4">
+                        ${getRecentActivities()}
+                    </div>
+                </div>
+            `;
+            
+            container.innerHTML = html;
+        }
+
+        function getRecentActivities() {
+            const reservas = [...DB.reservas]
+                .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                .slice(0, 5);
+                
+            if (reservas.length === 0) {
+                return '<p class="text-slate-500 text-center py-8">No hay actividades recientes</p>';
+            }
+            
+            return reservas.map(r => {
+                const docente = DB.docentes.find(d => d.id === r.docente_id);
+                const docenteUser = docente ? DB.usuarios.find(u => u.id === docente.usuario_id) : null;
+                const apoderado = DB.usuarios.find(u => u.id === r.apoderado_id);
+                
+                return `
+                    <div class="flex items-center gap-4 p-4 bg-slate-50 rounded-xl">
+                        <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+                            <i data-lucide="calendar" class="w-5 h-5"></i>
+                        </div>
+                        <div class="flex-1">
+                            <p class="font-medium text-slate-800">Reserva ${r.estado}</p>
+                            <p class="text-sm text-slate-600">
+                                ${docenteUser ? docenteUser.nombre : 'Docente'} con ${apoderado ? apoderado.nombre : 'Apoderado'}
+                            </p>
+                            <p class="text-xs text-slate-500 mt-1">${r.fecha} a las ${r.hora}</p>
+                        </div>
+                        <span class="px-3 py-1 rounded-full text-xs font-medium ${r.estado === 'reservado' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                            ${r.estado}
+                        </span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderDocentes(container) {
+            const html = `
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-800">Lista de Docentes</h3>
+                        <p class="text-sm text-slate-600">Gestiona los docentes registrados en el sistema</p>
+                    </div>
+                    <button onclick="openAddDocenteModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium flex items-center gap-2 transition-colors">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        Agregar Docente
+                    </button>
+                </div>
+                
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <table class="w-full">
+                        <thead class="bg-slate-50 border-b border-slate-200">
+                            <tr>
+                                <th class="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Docente</th>
+                                <th class="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Especialidad</th>
+                                <th class="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Email</th>
+                                <th class="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            ${DB.docentes.map(docente => {
+                                const user = DB.usuarios.find(u => u.id === docente.usuario_id);
+                                return `
+                                    <tr class="hover:bg-slate-50 transition-colors">
+                                        <td class="px-6 py-4">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold">
+                                                    ${user ? user.nombre.charAt(0) : '?'}
+                                                </div>
+                                                <span class="font-medium text-slate-800">${user ? user.nombre : 'N/A'}</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 text-slate-600">${docente.especialidad}</td>
+                                        <td class="px-6 py-4 text-slate-600">${user ? user.email : 'N/A'}</td>
+                                        <td class="px-6 py-4">
+                                            <button onclick="deleteDocente(${docente.id})" class="text-red-600 hover:text-red-700 font-medium text-sm flex items-center gap-1">
+                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                                Eliminar
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                    ${DB.docentes.length === 0 ? '<p class="text-center py-8 text-slate-500">No hay docentes registrados</p>' : ''}
+                </div>
+            `;
+            container.innerHTML = html;
+        }
+
+        function renderDisponibilidad(container) {
+            const docente = DB.docentes.find(d => d.usuario_id === currentUser.id);
+            
+            if (!docente) {
+                container.innerHTML = '<div class="text-center py-12 text-slate-500">No se encontró información de docente</div>';
+                return;
+            }
+            
+            const myDisponibilidad = DB.disponibilidad.filter(d => d.docente_id === docente.id);
+            
+            const html = `
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-800">Mi Horario Disponible</h3>
+                        <p class="text-sm text-slate-600">Define los horarios en los que puedes recibir apoderados</p>
+                    </div>
+                    <button onclick="openAddDisponibilidadModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium flex items-center gap-2 transition-colors">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        Agregar Horario
+                    </button>
+                </div>
+                
+                <div class="grid gap-4">
+                    ${myDisponibilidad.length === 0 ? 
+                        '<div class="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center text-blue-800">No tienes horarios definidos. Agrega tu disponibilidad para que los apoderados puedan agendar.</div>' 
+                        : 
+                        myDisponibilidad.map(disp => `
+                            <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200 flex items-center justify-between hover:shadow-md transition-shadow">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center text-green-600">
+                                        <i data-lucide="clock" class="w-6 h-6"></i>
+                                    </div>
+                                    <div>
+                                        <p class="font-semibold text-slate-800">${formatDate(disp.fecha)}</p>
+                                        <p class="text-sm text-slate-600">${disp.hora_inicio} - ${disp.hora_fin}</p>
+                                    </div>
+                                </div>
+                                <button onclick="deleteDisponibilidad(${disp.id})" class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                                    <i data-lucide="trash-2" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                        `).join('')
+                    }
+                </div>
+            `;
+            container.innerHTML = html;
+        }
+
+        function renderBuscarDocentes(container) {
+            const html = `
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold text-slate-800 mb-2">Buscar Docentes</h3>
+                    <p class="text-sm text-slate-600">Selecciona un docente para ver su disponibilidad y agendar una cita</p>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    ${DB.docentes.map(docente => {
+                        const user = DB.usuarios.find(u => u.id === docente.usuario_id);
+                        const disponibilidadCount = DB.disponibilidad.filter(d => d.docente_id === docente.id).length;
+                        
+                        return `
+                            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:shadow-lg transition-all cursor-pointer group" onclick="viewDocenteAvailability(${docente.id})">
+                                <div class="flex items-start justify-between mb-4">
+                                    <div class="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center text-indigo-700 text-xl font-bold">
+                                        ${user ? user.nombre.charAt(0) : '?'}
+                                    </div>
+                                    <span class="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                        ${disponibilidadCount} horarios
+                                    </span>
+                                </div>
+                                <h4 class="font-semibold text-slate-800 text-lg mb-1 group-hover:text-indigo-600 transition-colors">${user ? user.nombre : 'Docente'}</h4>
+                                <p class="text-slate-600 text-sm mb-4">${docente.especialidad}</p>
+                                <div class="flex items-center gap-2 text-sm text-indigo-600 font-medium">
+                                    <span>Ver disponibilidad</span>
+                                    <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition-transform"></i>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                ${DB.docentes.length === 0 ? '<p class="text-center py-12 text-slate-500">No hay docentes disponibles</p>' : ''}
+            `;
+            container.innerHTML = html;
+        }
+
+        function viewDocenteAvailability(docenteId) {
+            const docente = DB.docentes.find(d => d.id === docenteId);
+            const user = DB.usuarios.find(u => u.id === docente.usuario_id);
+            const disponibilidad = DB.disponibilidad.filter(d => d.docente_id === docenteId);
+            
+            const contenido = `
+                <div class="space-y-4 max-h-[60vh] overflow-y-auto">
+                    <div class="flex items-center gap-4 p-4 bg-slate-50 rounded-xl mb-4">
+                        <div class="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-lg">
+                            ${user.nombre.charAt(0)}
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-slate-800">${user.nombre}</h4>
+                            <p class="text-sm text-slate-600">${docente.especialidad}</p>
+                        </div>
+                    </div>
+                    
+                    ${disponibilidad.length === 0 ? 
+                        '<p class="text-center text-slate-500 py-4">Este docente no tiene horarios disponibles</p>' :
+                        disponibilidad.map(d => {
+                            const isReserved = DB.reservas.some(r => 
+                                r.docente_id === docenteId && 
+                                r.fecha === d.fecha && 
+                                r.hora === d.hora_inicio && 
+                                r.estado === 'reservado'
+                            );
+                            
+                            return `
+                                <div class="flex items-center justify-between p-4 border border-slate-200 rounded-xl ${isReserved ? 'bg-slate-50 opacity-60' : 'bg-white hover:border-indigo-300'} transition-colors">
+                                    <div class="flex items-center gap-3">
+                                        <i data-lucide="calendar" class="w-5 h-5 text-slate-400"></i>
+                                        <div>
+                                            <p class="font-medium text-slate-800">${formatDate(d.fecha)}</p>
+                                            <p class="text-sm text-slate-600">${d.hora_inicio} - ${d.hora_fin}</p>
+                                        </div>
+                                    </div>
+                                    ${isReserved ? 
+                                        '<span class="px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">Reservado</span>' :
+                                        `<button onclick="reservarCita(${docenteId}, '${d.fecha}', '${d.hora_inicio}')" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors">Reservar</button>`
+                                    }
+                                </div>
+                            `;
+                        }).join('')
+                    }
+                </div>
+            `;
+            
+            openModal(`Disponibilidad de ${user.nombre}`, contenido, null, false);
+        }
+
+        function renderReservas(container) {
+            const reservas = DB.reservas;
+            
+            const html = `
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold text-slate-800">Todas las Reservas</h3>
+                    <p class="text-sm text-slate-600">Visualización general del sistema de agendamiento</p>
+                </div>
+                
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <table class="w-full">
+                        <thead class="bg-slate-50 border-b border-slate-200">
+                            <tr>
+                                <th class="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Fecha/Hora</th>
+                                <th class="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Docente</th>
+                                <th class="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Apoderado</th>
+                                <th class="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Estado</th>
+                                <th class="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            ${reservas.map(r => {
+                                const docente = DB.docentes.find(d => d.id === r.docente_id);
+                                const docenteUser = docente ? DB.usuarios.find(u => u.id === docente.usuario_id) : null;
+                                const apoderado = DB.usuarios.find(u => u.id === r.apoderado_id);
+                                
+                                return `
+                                    <tr class="hover:bg-slate-50 transition-colors">
+                                        <td class="px-6 py-4">
+                                            <div class="font-medium text-slate-800">${r.fecha}</div>
+                                            <div class="text-sm text-slate-600">${r.hora}</div>
+                                        </td>
+                                        <td class="px-6 py-4 text-slate-800">${docenteUser ? docenteUser.nombre : 'N/A'}</td>
+                                        <td class="px-6 py-4 text-slate-800">${apoderado ? apoderado.nombre : 'N/A'}</td>
+                                        <td class="px-6 py-4">
+                                            <span class="px-3 py-1 rounded-full text-xs font-medium ${r.estado === 'reservado' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                                                ${r.estado}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            ${r.estado === 'reservado' ? `
+                                                <button onclick="cancelarReserva(${r.id})" class="text-red-600 hover:text-red-700 font-medium text-sm flex items-center gap-1">
+                                                    <i data-lucide="x-circle" class="w-4 h-4"></i>
+                                                    Cancelar
+                                                </button>
+                                            ` : '<span class="text-slate-400 text-sm">Cancelada</span>'}
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                    ${reservas.length === 0 ? '<p class="text-center py-8 text-slate-500">No hay reservas registradas</p>' : ''}
+                </div>
+            `;
+            container.innerHTML = html;
+        }
+
+        function renderMisCitas(container) {
+            const misReservas = DB.reservas.filter(r => r.apoderado_id === currentUser.id);
+            
+            const html = `
+                <div class="mb-6 flex justify-between items-center">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-800">Mis Citas Agendadas</h3>
+                        <p class="text-sm text-slate-600">Gestiona tus reuniones con docentes</p>
+                    </div>
+                    <button onclick="navigateTo('buscar-docentes')" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium flex items-center gap-2 transition-colors">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        Nueva Cita
+                    </button>
+                </div>
+                
+                <div class="grid gap-4">
+                    ${misReservas.length === 0 ? 
+                        '<div class="bg-blue-50 border border-blue-200 rounded-xl p-8 text-center text-blue-800">No tienes citas agendadas. Busca un docente y agenda tu primera reunión.</div>' 
+                        : 
+                        misReservas.map(r => {
+                            const docente = DB.docentes.find(d => d.id === r.docente_id);
+                            const docenteUser = docente ? DB.usuarios.find(u => u.id === docente.usuario_id) : null;
+                            
+                            return `
+                                <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200 flex items-center justify-between hover:shadow-md transition-shadow">
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-12 h-12 rounded-xl ${r.estado === 'reservado' ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'} flex items-center justify-center">
+                                            <i data-lucide="calendar" class="w-6 h-6"></i>
+                                        </div>
+                                        <div>
+                                            <p class="font-semibold text-slate-800">Reunión con ${docenteUser ? docenteUser.nombre : 'Docente'}</p>
+                                            <p class="text-sm text-slate-600">${formatDate(r.fecha)} a las ${r.hora}</p>
+                                            <span class="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-xs font-medium ${r.estado === 'reservado' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                                                <i data-lucide="${r.estado === 'reservado' ? 'check' : 'x'}" class="w-3 h-3"></i>
+                                                ${r.estado === 'reservado' ? 'Activa' : 'Cancelada'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    ${r.estado === 'reservado' ? `
+                                        <button onclick="cancelarReserva(${r.id})" class="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg font-medium text-sm transition-colors flex items-center gap-2">
+                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                            Cancelar
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            `;
+                        }).join('')
+                    }
+                </div>
+            `;
+            container.innerHTML = html;
+        }
+
+        // Actions
+        function openAddDocenteModal() {
+            const content = `
+                <form id="addDocenteForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Nombre completo</label>
+                        <input type="text" name="nombre" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                        <input type="email" name="email" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Especialidad</label>
+                        <input type="text" name="especialidad" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Contraseña temporal</label>
+                        <input type="password" name="password" required value="docente123" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                </form>
+            `;
+            
+            openModal('Agregar Nuevo Docente', content, () => {
+                const form = document.getElementById('addDocenteForm');
+                const email = form.email.value;
+                
+                if (DB.usuarios.find(u => u.email === email)) {
+                    showToast('El email ya está registrado', 'error');
+                    return;
+                }
+                
+                const newUser = {
+                    id: Date.now(),
+                    nombre: form.nombre.value,
+                    email: email,
+                    password: form.password.value,
+                    rol: 'docente',
+                    created_at: new Date().toISOString()
+                };
+                
+                DB.usuarios.push(newUser);
+                DB.docentes.push({
+                    id: Date.now(),
+                    usuario_id: newUser.id,
+                    especialidad: form.especialidad.value
+                });
+                
+                saveData();
+                closeModal();
+                renderDocentes(document.getElementById('contentArea'));
+                showToast('Docente agregado exitosamente', 'success');
+            });
+        }
+
+        function deleteDocente(id) {
+            if (!confirm('¿Estás seguro de eliminar este docente?')) return;
+            
+            const index = DB.docentes.findIndex(d => d.id === id);
+            if (index > -1) {
+                const docente = DB.docentes[index];
+                DB.docentes.splice(index, 1);
+                
+                // Also delete user
+                const userIndex = DB.usuarios.findIndex(u => u.id === docente.usuario_id);
+                if (userIndex > -1) DB.usuarios.splice(userIndex, 1);
+                
+                // Delete related disponibilidad and reservas
+                DB.disponibilidad = DB.disponibilidad.filter(d => d.docente_id !== id);
+                DB.reservas = DB.reservas.filter(r => r.docente_id !== id);
+                
+                saveData();
+                renderDocentes(document.getElementById('contentArea'));
+                showToast('Docente eliminado', 'success');
+            }
+        }
+
+        function openAddDisponibilidadModal() {
+            const today = new Date().toISOString().split('T')[0];
+            const content = `
+                <form id="addDispForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Fecha</label>
+                        <input type="date" name="fecha" required min="${today}" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Hora inicio</label>
+                            <input type="time" name="hora_inicio" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Hora fin</label>
+                            <input type="time" name="hora_fin" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                    </div>
+                </form>
+            `;
+            
+            openModal('Agregar Disponibilidad', content, () => {
+                const form = document.getElementById('addDispForm');
+                const docente = DB.docentes.find(d => d.usuario_id === currentUser.id);
+                
+                const horaInicio = form.hora_inicio.value;
+                const horaFin = form.hora_fin.value;
+                
+                if (horaInicio >= horaFin) {
+                    showToast('La hora de inicio debe ser menor que la hora de fin', 'error');
+                    return;
+                }
+                
+                DB.disponibilidad.push({
+                    id: Date.now(),
+                    docente_id: docente.id,
+                    fecha: form.fecha.value,
+                    hora_inicio: horaInicio,
+                    hora_fin: horaFin
+                });
+                
+                saveData();
+                closeModal();
+                renderDisponibilidad(document.getElementById('contentArea'));
+                showToast('Disponibilidad agregada', 'success');
+            });
+        }
+
+        function deleteDisponibilidad(id) {
+            if (!confirm('¿Eliminar este horario?')) return;
+            DB.disponibilidad = DB.disponibilidad.filter(d => d.id !== id);
+            saveData();
+            renderDisponibilidad(document.getElementById('contentArea'));
+            showToast('Horario eliminado', 'success');
+        }
+
+        function reservarCita(docenteId, fecha, hora) {
+            // Check for conflicts
+            const existe = DB.reservas.find(r => 
+                r.docente_id === docenteId && 
+                r.fecha === fecha && 
+                r.hora === hora && 
+                r.estado === 'reservado'
+            );
+            
+            if (existe) {
+                showToast('Este horario ya no está disponible', 'error');
+                closeModal();
+                viewDocenteAvailability(docenteId);
+                return;
+            }
+            
+            // Check if user already has reservation at same time
+            const miConflicto = DB.reservas.find(r => 
+                r.apoderado_id === currentUser.id && 
+                r.fecha === fecha && 
+                r.hora === hora && 
+                r.estado === 'reservado'
+            );
+            
+            if (miConflicto) {
+                showToast('Ya tienes una reserva a esta hora', 'error');
+                return;
+            }
+            
+            DB.reservas.push({
+                id: Date.now(),
+                docente_id: docenteId,
+                apoderado_id: currentUser.id,
+                fecha: fecha,
+                hora: hora,
+                estado: 'reservado',
+                created_at: new Date().toISOString()
+            });
+            
+            saveData();
+            closeModal();
+            showToast('Cita agendada exitosamente', 'success');
+            
+            // Navigate to my appointments
+            setTimeout(() => navigateTo('mis-citas'), 500);
+        }
+
+        function cancelarReserva(id) {
+            if (!confirm('¿Estás seguro de cancelar esta reserva?')) return;
+            
+            const reserva = DB.reservas.find(r => r.id === id);
+            if (reserva) {
+                reserva.estado = 'cancelado';
+                saveData();
+                
+                // Refresh current view
+                if (currentView === 'mis-citas') renderMisCitas(document.getElementById('contentArea'));
+                else if (currentView === 'mis-reservas' || currentView === 'reservas') renderReservas(document.getElementById('contentArea'));
+                else if (currentView === 'dashboard') renderDashboard(document.getElementById('contentArea'));
+                
+                showToast('Reserva cancelada', 'success');
+            }
+        }
+
+        // Modal System
+        function openModal(title, content, actionCallback, showAction = true) {
+            const modal = document.getElementById('modal');
+            const modalContent = document.getElementById('modalContent');
+            
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').innerHTML = content;
+            
+            const actionBtn = document.getElementById('modalActionBtn');
+            if (showAction) {
+                actionBtn.style.display = 'block';
+                actionBtn.onclick = actionCallback;
+            } else {
+                actionBtn.style.display = 'none';
+            }
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modalContent.classList.remove('scale-95');
+                modalContent.classList.add('scale-100');
+            }, 10);
+            
+            lucide.createIcons();
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('modal');
+            const modalContent = document.getElementById('modalContent');
+            
+            modal.classList.add('opacity-0');
+            modalContent.classList.remove('scale-100');
+            modalContent.classList.add('scale-95');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 200);
+        }
+
+        // Toast System
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+            
+            toastMessage.textContent = message;
+            
+            const icons = {
+                success: 'check-circle',
+                error: 'x-circle',
+                info: 'info'
+            };
+            
+            const colors = {
+                success: 'text-green-500',
+                error: 'text-red-500',
+                info: 'text-blue-500'
+            };
+            
+            toastIcon.className = colors[type];
+            toastIcon.innerHTML = `<i data-lucide="${icons[type]}" class="w-5 h-5"></i>`;
+            lucide.createIcons();
+            
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        // Helpers
+        function formatDate(dateStr) {
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            return new Date(dateStr).toLocaleDateString('es-ES', options);
+        }
+
+        // Close modal on outside click
+        document.getElementById('modal').addEventListener('click', (e) => {
+            if (e.target.id === 'modal') closeModal();
+        });
+    </script>
+<script src="https://deepsite.hf.co/deepsite-badge.js"></script>
+</body>
+</html>
