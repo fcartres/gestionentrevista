@@ -283,6 +283,7 @@ function App() {
     admin: [
       { id: 'dashboard', label: 'Dashboard', icon: Calendar },
       { id: 'docentes', label: 'Docentes', icon: Users },
+      { id: 'apoderados', label: 'Apoderados', icon: User },
       { id: 'reservas', label: 'Citas Globales', icon: CalendarCheck },
     ],
     docente: [
@@ -397,6 +398,7 @@ function App() {
     switch(currentView) {
       case 'dashboard': return <Dashboard db={db} currentUser={currentUser} showToast={showToast} onEditTemas={(id, texto) => setTemasEdit({id, texto})} onPrint={handlePrint} updateReserva={updateReserva} />;
       case 'docentes': return <Docentes db={db} addDocente={addDocente} deleteDocente={deleteDocente} showToast={showToast} currentUser={currentUser} />;
+      case 'apoderados': return <Apoderados db={db} />;
       case 'disponibilidad': return <DisponibilidadView db={db} currentUser={currentUser} showToast={showToast} addDisponibilidad={addDisponibilidad} deleteDisponibilidad={deleteDisponibilidad} />;
       case 'reservas': return <Reservas db={db} currentUser={currentUser} showToast={showToast} onEditTemas={(id, texto) => setTemasEdit({id, texto})} onPrint={handlePrint} updateReserva={updateReserva} />;
       case 'mis-reservas': return <Reservas db={db} currentUser={currentUser} showToast={showToast} onEditTemas={(id, texto) => setTemasEdit({id, texto})} onPrint={handlePrint} filterDocente={db.docentes.find(d => d.usuario_id === currentUser.id)?.id} updateReserva={updateReserva} />;
@@ -566,6 +568,8 @@ function Dashboard({ db, currentUser, showToast, onEditTemas, onPrint, updateRes
     .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
     .slice(0, 5);
 
+  const apoderados = db.usuarios.filter(u => u.rol === 'apoderado');
+
   const stats = [
     { label: 'Total Reservas', value: allActivities.length, icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'Docentes', value: db.docentes.length, icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50' },
@@ -589,6 +593,7 @@ function Dashboard({ db, currentUser, showToast, onEditTemas, onPrint, updateRes
           </div>
         ))}
       </div>
+
 
       <div className="glass-effect rounded-2xl overflow-hidden border border-slate-200/60 shadow-sm">
         <div className="p-6 border-b border-slate-200/60 flex items-center justify-between bg-slate-50/50">
@@ -1340,6 +1345,52 @@ function BuscarDocentes({ db, currentUser, showToast, setCurrentView, addReserva
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+
+function Apoderados({ db }: { db: DB }) {
+  const apoderados = db.usuarios.filter(u => u.rol === 'apoderado');
+
+  return (
+    <div className="space-y-8 fade-in">
+      <div>
+        <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter italic">Apoderados</h2>
+        <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest mt-1">Usuarios registrados con rol de apoderado</p>
+      </div>
+
+      <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-slate-50/50">
+              <tr>
+                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Nombre</th>
+                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Correo</th>
+                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Escuela</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {apoderados.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-6 py-16 text-center text-slate-400 italic text-xs font-bold uppercase tracking-widest">No hay apoderados registrados</td>
+                </tr>
+              ) : (
+                apoderados.map(user => {
+                  const establecimiento = db.establecimientos.find(e => e.id === user.establecimiento_id);
+                  return (
+                    <tr key={user.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 text-sm font-bold text-slate-900">{user.nombre}</td>
+                      <td className="px-6 py-4 text-sm text-slate-500">{user.email}</td>
+                      <td className="px-6 py-4 text-sm text-slate-500">{establecimiento?.nombre || 'N/A'}</td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
