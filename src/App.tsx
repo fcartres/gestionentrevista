@@ -134,7 +134,7 @@ function App() {
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-white text-blue-700 mb-6 shadow-2xl shadow-blue-900/50">
               <CalendarCheck className="w-10 h-10" />
             </div>
-            <h1 className="text-4xl font-black text-white tracking-tighter mb-2 uppercase italic">EduSchedule</h1>
+            <h1 className="text-4xl font-black text-white tracking-tighter mb-2 uppercase italic">SchoolCitas</h1>
             <p className="text-blue-200 font-bold uppercase tracking-[0.3em] text-[10px]">Portal de Gestión Multi-Colegio</p>
           </div>
 
@@ -187,7 +187,7 @@ function App() {
               <ArrowRight className="w-3 h-3 rotate-180" />
               Cambiar Colegio: {currentSchool.name}
             </button>
-            <h1 className="text-4xl font-black text-white tracking-tighter mb-2 uppercase italic">EduSchedule</h1>
+            <h1 className="text-4xl font-black text-white tracking-tighter mb-2 uppercase italic">SchoolCitas</h1>
             <p className="text-blue-100 font-bold uppercase tracking-[0.3em] text-[10px]">{currentSchool.name}</p>
           </div>
 
@@ -415,7 +415,7 @@ function App() {
               <CalendarCheck className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="font-bold text-white text-lg tracking-tight uppercase">EduSchedule</h1>
+              <h1 className="font-bold text-white text-lg tracking-tight uppercase">SchoolCitas</h1>
               <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">{currentUser.rol}</p>
             </div>
           </div>
