@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useStorage } from './hooks/useStorage';
 import { cn } from './lib/utils';
+import { sendInterviewCancellationEmail } from './lib/email';
 import type { DB, Usuario, Reserva, Disponibilidad, Role } from './types';
 import { SCHOOL_CONFIGS } from './lib/schoolConfigs';
 
@@ -548,19 +549,21 @@ function Dashboard({ db, currentUser, showToast, onEditTemas, onPrint, updateRes
   const isApoderado = currentUser.rol === 'apoderado';
   const isAdmin = currentUser.rol === 'admin';
 
-  const activities = db.reservas
+  const allActivities = db.reservas
     .filter(r => {
       if (isDocente) return db.docentes.find(d => d.usuario_id === currentUser.id)?.id === r.docente_id;
       if (isApoderado) return r.apoderado_id === currentUser.id;
       return true;
-    })
+    });
+
+  const activities = [...allActivities]
     .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
     .slice(0, 5);
 
   const stats = [
-    { label: 'Total Reservas', value: activities.length, icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'Total Reservas', value: allActivities.length, icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'Docentes', value: db.docentes.length, icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Próximas Citas', value: activities.filter(r => r.estado === 'reservado').length, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { label: 'Próximas Citas', value: allActivities.filter(r => r.estado === 'reservado').length, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
   ];
 
   return (
@@ -708,7 +711,26 @@ function Dashboard({ db, currentUser, showToast, onEditTemas, onPrint, updateRes
                             <button onClick={async () => {
                               if (!confirm('¿Seguro que desea cancelar esta reserva?')) return;
                               const success = await updateReserva({ ...r, estado: 'cancelado' as const });
-                              if (success) showToast('Reserva cancelada');
+                              if (success) {
+                                showToast('Reserva cancelada');
+                                const docente = db.docentes.find(d => d.id === r.docente_id);
+                                const docenteUsuario = docente ? db.usuarios.find(u => u.id === docente.usuario_id) : null;
+                                const apoderado = db.usuarios.find(u => u.id === r.apoderado_id);
+                                
+                                if (apoderado && docenteUsuario) {
+                                  try {
+                                    await sendInterviewCancellationEmail(
+                                      apoderado.email,
+                                      apoderado.nombre,
+                                      docenteUsuario.nombre,
+                                      r.fecha,
+                                      r.hora
+                                    );
+                                  } catch (err) {
+                                    console.error('Error enviando correo de cancelación:', err);
+                                  }
+                                }
+                              }
                             }} className="p-2 text-rose-500 hover:text-white hover:bg-rose-500 rounded-lg border border-rose-100 bg-white shadow-sm" title="Cancelar">
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -849,6 +871,13 @@ function DisponibilidadView({ db, currentUser, showToast, addDisponibilidad, del
     const h2 = formData.get('hora_fin') as string;
     const repeat = formData.get('repeat') === 'on';
     const weeks = parseInt(formData.get('weeks') as string) || 1;
+
+    const fecha = formData.get('fecha') as string;
+    const today = new Date().toISOString().split('T')[0];
+    if (fecha < today) {
+      showToast('No se puede agregar disponibilidad en fechas pasadas', 'error');
+      return;
+    }
 
     const newEntries: Disponibilidad[] = [];
     const recurringBaseId = Date.now();
@@ -1101,8 +1130,27 @@ function Reservas({ db, currentUser, showToast, onEditTemas, onPrint, filterDoce
                           {r.estado === 'reservado' && (
                             <button onClick={async () => {
                               if (!confirm('¿Cancelar cita?')) return;
-                              await updateReserva({...r, estado: 'cancelado'});
-                              showToast('Cita cancelada');
+                              const success = await updateReserva({...r, estado: 'cancelado' as const});
+                              if (success) {
+                                showToast('Cita cancelada');
+                                const docente = db.docentes.find(d => d.id === r.docente_id);
+                                const docenteUsuario = docente ? db.usuarios.find(u => u.id === docente.usuario_id) : null;
+                                const apoderado = db.usuarios.find(u => u.id === r.apoderado_id);
+                                
+                                if (apoderado && docenteUsuario) {
+                                  try {
+                                    await sendInterviewCancellationEmail(
+                                      apoderado.email,
+                                      apoderado.nombre,
+                                      docenteUsuario.nombre,
+                                      r.fecha,
+                                      r.hora
+                                    );
+                                  } catch (err) {
+                                    console.error('Error enviando correo de cancelación:', err);
+                                  }
+                                }
+                              }
                             }} className="p-2 text-rose-500 hover:text-white hover:bg-rose-500 rounded-xl transition-all border border-rose-100 bg-white">
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -1132,6 +1180,12 @@ function BuscarDocentes({ db, currentUser, showToast, setCurrentView, addReserva
   });
 
   const handleReserve = async (disp: Disponibilidad) => {
+    const today = new Date().toISOString().split('T')[0];
+    if (disp.fecha < today) {
+      showToast('No se puede agendar una cita en una fecha pasada', 'error');
+      return;
+    }
+
     try {
       const success = await addReserva({
         docente_id: disp.docente_id,
@@ -1152,8 +1206,9 @@ function BuscarDocentes({ db, currentUser, showToast, setCurrentView, addReserva
 
   const selectedDocenteData = db.docentes.find(d => d.id === selectedDocente);
   const selectedDocenteUser = selectedDocenteData ? db.usuarios.find(u => u.id === selectedDocenteData.usuario_id) : null;
+  const today = new Date().toISOString().split('T')[0];
   const docenteHorarios = db.disponibilidad
-    .filter(disp => disp.docente_id === selectedDocente)
+    .filter(disp => disp.docente_id === selectedDocente && disp.fecha >= today)
     .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
 
   return (
@@ -1236,7 +1291,7 @@ function BuscarDocentes({ db, currentUser, showToast, setCurrentView, addReserva
                     r.docente_id === disp.docente_id && 
                     r.fecha === disp.fecha && 
                     r.hora === disp.hora_inicio && 
-                    r.estado !== 'cancelado'
+                    r.estado === 'reservado'
                   );
 
                   return (

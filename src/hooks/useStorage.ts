@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { DB, Usuario, Reserva, Disponibilidad } from '../types';
 import { supabase } from '../lib/supabase';
+import { sendInterviewConfirmationEmail } from '../lib/email';
 import type { SchoolConfig } from '../lib/schoolConfigs';
 
 export function useStorage() {
@@ -156,9 +157,37 @@ export function useStorage() {
   };
 
   const updateReserva = async (reserva: Reserva) => {
-    const { error } = await supabase.from('reservas').upsert([reserva]);
-    if (!error) await fetchData();
-    return !error;
+    try {
+      console.log('Actualizando reserva:', reserva.id, 'a estado:', reserva.estado);
+      
+      // Actualizar localmente primero para feedback instantáneo
+      setDb(prev => ({
+        ...prev,
+        reservas: prev.reservas.map(r => r.id === reserva.id ? { ...r, estado: reserva.estado, temas: reserva.temas } : r)
+      }));
+      
+      // Sincronizar con Supabase
+      const { error } = await supabase
+        .from('reservas')
+        .update({
+          estado: reserva.estado,
+          temas: reserva.temas
+        })
+        .eq('id', reserva.id);
+      
+      if (error) {
+        console.error('Error actualizar:', error);
+        // Revertir el cambio local si falla
+        await fetchData();
+        return false;
+      }
+      
+      console.log('Reserva actualizada exitosamente');
+      return true;
+    } catch (err) {
+      console.error('Exception en updateReserva:', err);
+      return false;
+    }
   };
 
   const addDisponibilidad = async (disp: Disponibilidad[]) => {
@@ -184,7 +213,25 @@ export function useStorage() {
       created_at: new Date().toISOString()
     };
     const { error } = await supabase.from('reservas').insert([newReserva]);
-    if (!error) await fetchData();
+    if (!error) {
+      await fetchData();
+
+      const docente = db.docentes.find(d => d.id === reserva.docente_id);
+      const docenteUsuario = docente ? db.usuarios.find(u => u.id === docente.usuario_id) : null;
+      const docenteNombre = docenteUsuario?.nombre || 'Docente';
+
+      try {
+        await sendInterviewConfirmationEmail(
+          currentUser.email,
+          currentUser.nombre,
+          docenteNombre,
+          reserva.fecha,
+          reserva.hora
+        );
+      } catch (emailError) {
+        console.error('Error enviando correo de confirmación:', emailError);
+      }
+    }
     return !error;
   };
 
