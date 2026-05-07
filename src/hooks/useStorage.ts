@@ -4,6 +4,7 @@ import type { DB, Usuario, Reserva, Disponibilidad } from '../types';
 import { supabase } from '../lib/supabase';
 import { sendInterviewConfirmationEmail } from '../lib/email';
 import type { SchoolConfig } from '../lib/schoolConfigs';
+import { loginLimiter, registerLimiter, getRateLimitErrorMessage } from '../lib/rateLimiter';
 
 export function useStorage() {
   const [currentSchool, setCurrentSchool] = useState<SchoolConfig | null>(() => {
@@ -89,22 +90,39 @@ export function useStorage() {
     }
   }, [currentUser]);
 
-  const login = async (email: string, password: string): Promise<Usuario | null> => {
-    if (!currentSchool) return null;
+  const login = async (email: string, password: string): Promise<{ usuario: Usuario | null; error?: string }> => {
+    if (!currentSchool) return { usuario: null, error: 'Colegio no seleccionado' };
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Verificar si está bloqueado por rate limiting
+    const { blocked, remainingMinutes } = loginLimiter.getStatus(normalizedEmail);
+    if (blocked) {
+      const errorMsg = getRateLimitErrorMessage('login', remainingMinutes, 0);
+      return { usuario: null, error: errorMsg };
+    }
 
     const { data, error } = await supabase
       .from('usuarios')
       .select('*')
-      .eq('email', email)
+      .eq('email', normalizedEmail)
       .eq('password', password)
       .eq('establecimiento_id', currentSchool.id)
       .maybeSingle();
 
     if (data && !error) {
+      // Login exitoso - limpiar contador
+      loginLimiter.recordSuccessfulAttempt(normalizedEmail);
       setCurrentUser(data);
-      return data;
+      return { usuario: data };
     }
-    return null;
+
+    // Login fallido - registrar intento
+    const { remainingMs, attemptsRemaining } = loginLimiter.recordFailedAttempt(normalizedEmail);
+    const remainingMins = Math.ceil(remainingMs / 60000);
+    const errorMsg = getRateLimitErrorMessage('login', remainingMins, attemptsRemaining);
+    
+    return { usuario: null, error: errorMsg };
   };
 
   const logout = () => {
@@ -117,6 +135,12 @@ export function useStorage() {
 
       const normalizedEmail = newUser.email.trim().toLowerCase();
 
+      // Verificar si está bloqueado por rate limiting
+      const { blocked, remainingMinutes } = registerLimiter.getStatus(normalizedEmail);
+      if (blocked) {
+        throw new Error(getRateLimitErrorMessage('register', remainingMinutes, 0));
+      }
+
       const { data: existingUser } = await supabase
         .from('usuarios')
         .select('*')
@@ -124,6 +148,8 @@ export function useStorage() {
         .maybeSingle();
 
       if (existingUser) {
+        // Registrar intento fallido
+        registerLimiter.recordFailedAttempt(normalizedEmail);
         throw new Error('El correo ya existe.');
       }
 
@@ -141,7 +167,14 @@ export function useStorage() {
         .select()
         .single();
 
-      if (userError) throw userError;
+      if (userError) {
+        // Registrar intento fallido
+        registerLimiter.recordFailedAttempt(normalizedEmail);
+        throw userError;
+      }
+
+      // Registro exitoso - limpiar contador
+      registerLimiter.recordSuccessfulAttempt(normalizedEmail);
 
       if (user.rol === 'docente') {
         await supabase.from('docentes').insert([{

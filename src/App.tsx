@@ -23,6 +23,9 @@ import {
   School
 } from 'lucide-react';
 import { useStorage } from './hooks/useStorage';
+import { useRateLimitStatus } from './hooks/useRateLimitStatus';
+import { RateLimitWarning } from './components/RateLimitWarning';
+import { ThemeToggle } from './components/ThemeToggle';
 import { cn } from './lib/utils';
 import { sendInterviewCancellationEmail } from './lib/email';
 import type { DB, Usuario, Reserva, Disponibilidad, Role } from './types';
@@ -62,6 +65,11 @@ function App() {
     type: 'success'
   });
   const [temasEdit, setTemasEdit] = useState<{id: number, texto: string} | null>(null);
+  const [authEmail, setAuthEmail] = useState('');
+
+  // Monitorear rate limiting para login y registro
+  const loginRateLimit = useRateLimitStatus(authEmail, 'login');
+  const registerRateLimit = useRateLimitStatus(authEmail, 'register');
 
   const currentDate = new Date().toLocaleDateString('es-ES', { 
     weekday: 'long', 
@@ -81,11 +89,12 @@ function App() {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     
-    if (await login(email, password)) {
+    const result = await login(email, password);
+    if (result.usuario) {
       showToast('Bienvenido', 'success');
       setCurrentView('dashboard');
     } else {
-      showToast('Credenciales incorrectas', 'error');
+      showToast(result.error || 'Credenciales incorrectas', 'error');
     }
   };
 
@@ -111,7 +120,8 @@ function App() {
       showToast('Cuenta creada exitosamente', 'success');
       setCurrentView('dashboard');
     } catch (err) {
-      showToast('Error al registrar usuario', 'error');
+      const errorMessage = err instanceof Error ? err.message : 'Error al registrar usuario';
+      showToast(errorMessage, 'error');
     }
   };
 
@@ -129,17 +139,17 @@ function App() {
   // STEP 1: School Selection
   if (!currentSchool) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4 relative overflow-hidden">
+      <div className="min-h-screen flex items-center justify-center bg-slate-900 dark:bg-slate-950 p-4 relative overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[70%] h-[70%] bg-blue-600/20 rounded-full blur-[120px] pointer-events-none animate-pulse"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[70%] h-[70%] bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none animate-pulse"></div>
         
         <div className="w-full max-w-2xl relative z-10">
           <div className="text-center mb-12 fade-in">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-white text-blue-700 mb-6 shadow-2xl shadow-blue-900/50">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-white dark:bg-blue-600 text-blue-700 dark:text-white mb-6 shadow-2xl shadow-blue-900/50">
               <CalendarCheck className="w-10 h-10" />
             </div>
-            <h1 className="text-4xl font-black text-white tracking-tighter mb-2 uppercase italic">SchoolCitas</h1>
-            <p className="text-blue-200 font-bold uppercase tracking-[0.3em] text-[10px]">Portal de Gestión Multi-Colegio</p>
+            <h1 className="text-4xl font-black text-white dark:text-white tracking-tighter mb-2 uppercase italic">SchoolCitas</h1>
+            <p className="text-blue-200 dark:text-blue-300 font-bold uppercase tracking-[0.3em] text-[10px]">Portal de Gestión Multi-Colegio</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 fade-in">
@@ -147,9 +157,9 @@ function App() {
               <button
                 key={school.id}
                 onClick={() => selectSchool(school)}
-                className="group bg-white/10 backdrop-blur-xl border border-white/10 p-6 rounded-[2.5rem] hover:bg-white/20 transition-all text-center flex flex-col items-center gap-4 hover:scale-105 active:scale-95 shadow-2xl"
+                className="group bg-white/10 dark:bg-slate-800/50 backdrop-blur-xl border border-white/10 dark:border-slate-700/50 p-6 rounded-[2.5rem] hover:bg-white/20 dark:hover:bg-slate-700/50 transition-all text-center flex flex-col items-center gap-4 hover:scale-105 active:scale-95 shadow-2xl"
               >
-                <div className="w-20 h-20 rounded-3xl bg-white/10 flex items-center justify-center text-white group-hover:bg-blue-600 group-hover:scale-110 transition-all overflow-hidden">
+                <div className="w-20 h-20 rounded-3xl bg-white/10 dark:bg-slate-700 flex items-center justify-center text-white group-hover:bg-blue-600 dark:group-hover:bg-blue-600 group-hover:scale-110 transition-all overflow-hidden">
                   {school.logo ? (
                     <img src={school.logo} alt={school.name} className="w-full h-full object-cover" />
                   ) : (
@@ -159,21 +169,21 @@ function App() {
                   )}
                 </div>
                 <div>
-                  <h3 className="text-white font-black text-sm uppercase tracking-tight">{school.name}</h3>
-                  <p className="text-blue-300 text-[9px] font-bold uppercase tracking-widest mt-1">Conectar ahora</p>
+                  <h3 className="text-white dark:text-slate-100 font-black text-sm uppercase tracking-tight">{school.name}</h3>
+                  <p className="text-blue-300 dark:text-blue-400 text-[9px] font-bold uppercase tracking-widest mt-1">Conectar ahora</p>
                 </div>
-                <ChevronRight className="w-5 h-5 text-white/30 group-hover:text-white transition-colors" />
+                <ChevronRight className="w-5 h-5 text-white/30 dark:text-slate-500 group-hover:text-white dark:group-hover:text-blue-400 transition-colors" />
               </button>
             ))}
           </div>
           
           {schools.length === 0 && (
-            <div className="text-center p-12 bg-white/5 rounded-3xl border border-dashed border-white/10">
-              <p className="text-blue-200 text-xs font-bold uppercase tracking-widest">No se encontraron colegios configurados en la base maestra</p>
+            <div className="text-center p-12 bg-white/5 dark:bg-slate-800/30 rounded-3xl border border-dashed border-white/10 dark:border-slate-700/30">
+              <p className="text-blue-200 dark:text-blue-300 text-xs font-bold uppercase tracking-widest">No se encontraron colegios configurados en la base maestra</p>
             </div>
           )}
           
-          <p className="text-center text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] mt-12">
+          <p className="text-center text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em] mt-12">
             Selecciona tu establecimiento para continuar
           </p>
         </div>
@@ -184,7 +194,7 @@ function App() {
   // STEP 2: Auth (Login/Register) for the selected school
   if (!currentUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4 relative overflow-hidden">
+      <div className="min-h-screen flex items-center justify-center bg-slate-900 dark:bg-slate-950 p-4 relative overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[70%] h-[70%] bg-blue-600/20 rounded-full blur-[120px] pointer-events-none animate-pulse"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[70%] h-[70%] bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none animate-pulse"></div>
         
@@ -201,33 +211,63 @@ function App() {
             <p className="text-blue-100 font-bold uppercase tracking-[0.3em] text-[10px]">{currentSchool.name}</p>
           </div>
 
-          <div className="bg-white/95 backdrop-blur-xl rounded-[2.5rem] p-10 fade-in shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/20">
+          <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-[2.5rem] p-10 fade-in shadow-[0_20px_50px_rgba(0,0,0,0.5)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-white/20 dark:border-slate-800/50 transition-colors">
             {authMode === 'login' ? (
               <>
-                <h2 className="text-3xl font-black mb-8 text-slate-900 tracking-tight uppercase text-center italic">Acceso</h2>
+                <h2 className="text-3xl font-black mb-8 text-slate-900 dark:text-white tracking-tight uppercase text-center italic">Acceso</h2>
                 <form onSubmit={handleLoginSubmit} className="space-y-6">
                   <div className="space-y-2">
-                    <label className="block text-[10px] font-black text-blue-500 uppercase tracking-widest ml-1">Correo electrónico</label>
+                    <label className="block text-[10px] font-black text-blue-500 dark:text-blue-400 uppercase tracking-widest ml-1">Correo electrónico</label>
                     <div className="relative group">
-                      <Mail className="absolute left-4 top-4 w-5 h-5 text-slate-300 group-focus-within:text-blue-600 transition-colors" />
-                      <input type="email" name="email" required className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-blue-600 transition-all text-sm outline-none font-bold text-slate-900 placeholder:text-slate-200" placeholder="usuario@ejemplo.com" />
+                      <Mail className="absolute left-4 top-4 w-5 h-5 text-slate-300 dark:text-slate-500 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400 transition-colors" />
+                      <input 
+                        type="email" 
+                        name="email" 
+                        required 
+                        onChange={(e) => setAuthEmail(e.target.value)}
+                        disabled={loginRateLimit.blocked}
+                        className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-transparent dark:border-slate-700 rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:border-blue-600 dark:focus:border-blue-500 transition-all text-sm outline-none font-bold text-slate-900 dark:text-white placeholder:text-slate-200 dark:placeholder:text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed" 
+                        placeholder="usuario@ejemplo.com" 
+                      />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <label className="block text-[10px] font-black text-blue-500 uppercase tracking-widest ml-1">Contraseña</label>
+                    <label className="block text-[10px] font-black text-blue-500 dark:text-blue-400 uppercase tracking-widest ml-1">Contraseña</label>
                     <div className="relative group">
-                      <Lock className="absolute left-4 top-4 w-5 h-5 text-slate-300 group-focus-within:text-blue-600 transition-colors" />
-                      <input type="password" name="password" required className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-blue-600 transition-all text-sm outline-none font-bold text-slate-900 placeholder:text-slate-200" placeholder="••••••••" />
+                      <Lock className="absolute left-4 top-4 w-5 h-5 text-slate-300 dark:text-slate-500 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400 transition-colors" />
+                      <input 
+                        type="password" 
+                        name="password" 
+                        required 
+                        disabled={loginRateLimit.blocked}
+                        className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-transparent dark:border-slate-700 rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:border-blue-600 dark:focus:border-blue-500 transition-all text-sm outline-none font-bold text-slate-900 dark:text-white placeholder:text-slate-200 dark:placeholder:text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed" 
+                        placeholder="••••••••" 
+                      />
                     </div>
                   </div>
-                  <button type="submit" className="w-full bg-blue-700 hover:bg-blue-800 text-white font-black py-4 rounded-2xl transition-all shadow-xl shadow-blue-200 flex items-center justify-center gap-3 group active:scale-[0.98] uppercase tracking-widest text-xs mt-4">
+
+                  {loginRateLimit.blocked || loginRateLimit.totalAttempts > 0 && (
+                    <RateLimitWarning
+                      blocked={loginRateLimit.blocked}
+                      remainingMinutes={loginRateLimit.remainingMinutes}
+                      attemptCount={loginRateLimit.totalAttempts}
+                      maxAttempts={loginRateLimit.maxAttempts}
+                      type="login"
+                    />
+                  )}
+
+                  <button 
+                    type="submit" 
+                    disabled={loginRateLimit.blocked}
+                    className="w-full bg-blue-700 hover:bg-blue-800 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-black py-4 rounded-2xl transition-all shadow-xl shadow-blue-200 dark:shadow-blue-900/30 flex items-center justify-center gap-3 group active:scale-[0.98] uppercase tracking-widest text-xs mt-4"
+                  >
                     Entrar al portal
                     <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform" />
                   </button>
                 </form>
                 <div className="mt-10 text-center">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">¿Nuevo en la plataforma? 
-                    <button onClick={() => setAuthMode('register')} className="text-blue-700 hover:text-blue-900 font-black ml-2 underline decoration-2 underline-offset-4">Regístrate gratis</button>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">¿Nuevo en la plataforma? 
+                    <button onClick={() => setAuthMode('register')} className="text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 font-black ml-2 underline decoration-2 underline-offset-4">Regístrate gratis</button>
                   </p>
                 </div>
               </>
@@ -239,24 +279,62 @@ function App() {
                     <label className="block text-[10px] font-black text-blue-500 uppercase tracking-widest ml-1">Nombre completo</label>
                     <div className="relative group">
                       <User className="absolute left-4 top-4 w-5 h-5 text-slate-300 group-focus-within:text-blue-600 transition-colors" />
-                      <input type="text" name="nombre" required className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-blue-600 transition-all text-sm outline-none font-bold text-slate-900 placeholder:text-slate-200" placeholder="Tu nombre" />
+                      <input 
+                        type="text" 
+                        name="nombre" 
+                        required 
+                        disabled={registerRateLimit.blocked}
+                        className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-blue-600 transition-all text-sm outline-none font-bold text-slate-900 placeholder:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed" 
+                        placeholder="Tu nombre" 
+                      />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <label className="block text-[10px] font-black text-blue-500 uppercase tracking-widest ml-1">Correo electrónico</label>
                     <div className="relative group">
                       <Mail className="absolute left-4 top-4 w-5 h-5 text-slate-300 group-focus-within:text-blue-600 transition-colors" />
-                      <input type="email" name="email" required className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-blue-600 transition-all text-sm outline-none font-bold text-slate-900 placeholder:text-slate-200" placeholder="email@ejemplo.com" />
+                      <input 
+                        type="email" 
+                        name="email" 
+                        required 
+                        onChange={(e) => setAuthEmail(e.target.value)}
+                        disabled={registerRateLimit.blocked}
+                        className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-blue-600 transition-all text-sm outline-none font-bold text-slate-900 placeholder:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed" 
+                        placeholder="email@ejemplo.com" 
+                      />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <label className="block text-[10px] font-black text-blue-500 uppercase tracking-widest ml-1">Contraseña</label>
                     <div className="relative group">
                       <Lock className="absolute left-4 top-4 w-5 h-5 text-slate-300 group-focus-within:text-blue-600 transition-colors" />
-                      <input type="password" name="password" required minLength={6} className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-blue-600 transition-all text-sm outline-none font-bold text-slate-900 placeholder:text-slate-200" placeholder="Mínimo 6 caracteres" />
+                      <input 
+                        type="password" 
+                        name="password" 
+                        required 
+                        minLength={6} 
+                        disabled={registerRateLimit.blocked}
+                        className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-blue-600 transition-all text-sm outline-none font-bold text-slate-900 placeholder:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed" 
+                        placeholder="Mínimo 6 caracteres" 
+                      />
                     </div>
                   </div>
-                  <button type="submit" className="w-full bg-blue-700 hover:bg-blue-800 text-white font-black py-4 rounded-2xl transition-all shadow-xl shadow-blue-200 flex items-center justify-center gap-3 group active:scale-[0.98] uppercase tracking-widest text-xs mt-4">
+
+                  {registerRateLimit.blocked || registerRateLimit.totalAttempts > 0 && (
+                    <RateLimitWarning
+                      blocked={registerRateLimit.blocked}
+                      remainingMinutes={registerRateLimit.remainingMinutes}
+                      attemptCount={registerRateLimit.totalAttempts}
+                      maxAttempts={registerRateLimit.maxAttempts}
+                      type="register"
+                    />
+                  )}
+
+                  <button 
+                    type="submit" 
+                    disabled={registerRateLimit.blocked}
+                    className="w-full bg-blue-700 hover:bg-blue-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black py-4 rounded-2xl transition-all shadow-xl shadow-blue-200 flex items-center justify-center gap-3 group active:scale-[0.98] uppercase tracking-widest text-xs mt-4"
+                  >
                     Crear mi cuenta
                     <UserPlus className="w-5 h-5 group-hover:scale-125 transition-transform" />
                   </button>
@@ -481,28 +559,29 @@ function App() {
       )}
 
       <main className="flex-1 md:ml-64 min-h-screen relative z-10">
-        <header className="bg-white/70 backdrop-blur-xl border-b border-slate-200/60 sticky top-0 z-20">
+        <header className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-slate-200/60 dark:border-slate-700/60 sticky top-0 z-20 transition-colors">
           <div className="flex items-center justify-between px-8 py-4">
             <div className="flex items-center gap-4">
-              <button onClick={() => setIsSidebarOpen(true)} className="md:hidden p-2 text-slate-600">
+              <button onClick={() => setIsSidebarOpen(true)} className="md:hidden p-2 text-slate-600 dark:text-slate-400">
                 <Menu className="w-5 h-5" />
               </button>
               <div>
-                <h2 className="text-sm font-black text-slate-900 uppercase tracking-wider">{currentView.replace('-', ' ')}</h2>
+                <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">{currentView.replace('-', ' ')}</h2>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <p className="text-[9px] text-blue-600 font-bold uppercase tracking-widest">{currentDate}</p>
-                  <span className="text-[9px] text-slate-300">•</span>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{currentSchool.name}</p>
+                  <p className="text-[9px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-widest">{currentDate}</p>
+                  <span className="text-[9px] text-slate-300 dark:text-slate-600">•</span>
+                  <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">{currentSchool.name}</p>
                 </div>
               </div>
             </div>
             
             <div className="flex items-center gap-4">
+              <ThemeToggle />
               <div className="text-right hidden sm:block">
-                <p className="font-bold text-slate-900 text-xs">{currentUser.nombre}</p>
-                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{currentUser.email}</p>
+                <p className="font-bold text-slate-900 dark:text-white text-xs">{currentUser.nombre}</p>
+                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">{currentUser.email}</p>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-slate-200">
+              <div className="w-10 h-10 rounded-xl bg-slate-900 dark:bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-slate-200 dark:shadow-blue-900/50 transition-colors">
                 {currentUser.nombre.charAt(0).toUpperCase()}
               </div>
             </div>
